@@ -5,6 +5,7 @@ import (
 	apphttp "PanCheck/pkg/http"
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"log"
@@ -91,9 +92,16 @@ func (c *TianyiChecker) Check(link string) (*CheckResult, error) {
 type TelecomResp struct {
 	ResCode        int    `json:"res_code"`
 	ResMessage     string `json:"res_message"`
+	ErrorCode      string `json:"-"`
 	FileName       string `json:"fileName"`
 	NeedAccessCode int    `json:"needAccessCode"` // 是否需要访问码：1表示需要，0表示不需要
 	ShareId        int64  `json:"shareId"`        // 分享ID，如果大于0表示链接有效
+}
+
+type telecomErrorResp struct {
+	XMLName xml.Name `xml:"error"`
+	Code    string   `xml:"code"`
+	Message string   `xml:"message"`
 }
 
 // telecomRequest 发起请求
@@ -157,6 +165,17 @@ func telecomRequest(ctx context.Context, codeValue string, accessCode string, re
 		return nil, fmt.Errorf("API返回错误状态码: %d, 响应: %s", resp.StatusCode, string(body))
 	}
 
+	trimmedBody := strings.TrimSpace(string(body))
+	if strings.HasPrefix(trimmedBody, "<") {
+		var errorResp telecomErrorResp
+		if err = xml.Unmarshal(body, &errorResp); err == nil && errorResp.Code != "" {
+			return &TelecomResp{
+				ResMessage: mapTelecomErrorMessage(errorResp.Code, errorResp.Message),
+				ErrorCode:  errorResp.Code,
+			}, nil
+		}
+	}
+
 	var response TelecomResp
 	if err = json.Unmarshal(body, &response); err != nil {
 		log.Printf("[TianyiChecker] JSON解析失败，原始响应: %s", string(body))
@@ -164,6 +183,18 @@ func telecomRequest(ctx context.Context, codeValue string, accessCode string, re
 	}
 
 	return &response, nil
+}
+
+func mapTelecomErrorMessage(code string, fallback string) string {
+	switch code {
+	case "ShareAuditNotPass":
+		return "分享因审核未通过已失效"
+	default:
+		if fallback != "" {
+			return fallback
+		}
+		return code
+	}
 }
 
 // extractCodeFromURL 从URL中提取code参数和访问码
