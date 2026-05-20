@@ -37,7 +37,7 @@ func (c *QuarkChecker) Check(link string) (*CheckResult, error) {
 	defer cancel()
 
 	// 提取资源ID和密码
-	resourceID, passCode, err := extractParamsQuark(link)
+	resourceID, passCode, err := extractParamsQuark(link, c.GetHTTPClient())
 	if err != nil {
 		return &CheckResult{
 			Valid:         false,
@@ -254,7 +254,7 @@ func quarkDetailRequest(ctx context.Context, resourceID string, stoken string) (
 // - https://pan.quark.cn/s/{pwd_id}#/list/share
 // - https://pan.quark.cn/s/{pwd_id}?pwd={password}#/list/share
 // - https://pan.qoark.cn/s/{short_code} (需要重定向到pan.quark.cn获取真实pwd_id)
-func extractParamsQuark(rawURL string) (resId, pwd string, err error) {
+func extractParamsQuark(rawURL string, httpClient *http.Client) (resId, pwd string, err error) {
 	// 支持查询参数和锚点的正则表达式
 	// 匹配格式: https://pan.quark.cn/s/{pwd_id}[?pwd={password}][#{fragment}]
 	// 或: https://pan.qoark.cn/s/{short_code}[?pwd={password}][#{fragment}]
@@ -296,7 +296,7 @@ func extractParamsQuark(rawURL string) (resId, pwd string, err error) {
 		defer cancel()
 
 		// 发起请求，跟随重定向
-		redirectURL, err := followRedirect(ctx, rawURL)
+		redirectURL, err := followRedirect(ctx, rawURL, httpClient)
 		if err != nil {
 			return "", "", fmt.Errorf("重定向失败: %v", err)
 		}
@@ -356,20 +356,7 @@ func extractParamsQuark(rawURL string) (resId, pwd string, err error) {
 }
 
 // followRedirect 跟随HTTP重定向，返回最终的URL
-func followRedirect(ctx context.Context, urlStr string) (string, error) {
-	// 创建一个会跟随重定向的HTTP客户端
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-		// 默认会跟随最多10次重定向
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// 如果重定向次数过多，返回错误
-			if len(via) >= 10 {
-				return fmt.Errorf("重定向次数过多")
-			}
-			return nil
-		},
-	}
-
+func followRedirect(ctx context.Context, urlStr string, httpClient *http.Client) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
 	if err != nil {
 		return "", fmt.Errorf("创建请求失败: %v", err)
@@ -378,7 +365,7 @@ func followRedirect(ctx context.Context, urlStr string) (string, error) {
 	apphttp.SetDefaultHeaders(req)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return "", &apphttp.TimeoutError{Message: "重定向请求超时"}

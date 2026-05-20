@@ -268,11 +268,9 @@ func (s *CheckerService) CheckRealtime(submissionID uint, links []string) (*mode
 
 	// 保存失效链接
 	log.Printf("CheckRealtime: Saving %d invalid links for submission %d", len(invalidLinks), submissionID)
-	for _, il := range invalidLinks {
-		err = s.invalidLinkRepo.CreateOrUpdate(&il)
-		if err != nil {
-			// 记录错误但不影响主流程
-			log.Printf("CheckRealtime: Failed to save invalid link %s: %v", il.Link, err)
+	if len(invalidLinks) > 0 {
+		if err := s.invalidLinkRepo.BatchUpsert(invalidLinks); err != nil {
+			log.Printf("CheckRealtime: Failed to batch save invalid links for submission %d: %v", submissionID, err)
 		}
 	}
 
@@ -471,11 +469,9 @@ func (s *CheckerService) CheckRealtimeWithPlatformFilter(submissionID uint, link
 
 	// 保存失效链接
 	log.Printf("CheckRealtimeWithPlatformFilter: Saving %d invalid links for submission %d", len(invalidLinks), submissionID)
-	for _, il := range invalidLinks {
-		err = s.invalidLinkRepo.CreateOrUpdate(&il)
-		if err != nil {
-			// 记录错误但不影响主流程
-			log.Printf("CheckRealtimeWithPlatformFilter: Failed to save invalid link %s: %v", il.Link, err)
+	if len(invalidLinks) > 0 {
+		if err := s.invalidLinkRepo.BatchUpsert(invalidLinks); err != nil {
+			log.Printf("CheckRealtimeWithPlatformFilter: Failed to batch save invalid links for submission %d: %v", submissionID, err)
 		}
 	}
 

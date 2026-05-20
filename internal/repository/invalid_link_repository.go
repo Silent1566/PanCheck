@@ -3,6 +3,8 @@ package repository
 import (
 	"PanCheck/internal/model"
 	"PanCheck/pkg/database"
+
+	"gorm.io/gorm/clause"
 )
 
 // InvalidLinkRepository 失效链接仓库
@@ -40,6 +42,19 @@ func (r *InvalidLinkRepository) CreateOrUpdate(invalidLink *model.InvalidLink) e
 	}
 
 	return database.DB.Save(&existing).Error
+}
+
+// BatchUpsert 批量插入或更新失效链接（使用数据库层 UPSERT，替代逐条 SELECT+INSERT/UPDATE）
+func (r *InvalidLinkRepository) BatchUpsert(invalidLinks []model.InvalidLink) error {
+	if len(invalidLinks) == 0 {
+		return nil
+	}
+	return database.DB.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "link"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"failure_reason", "check_duration", "is_rate_limited", "submission_id",
+		}),
+	}).CreateInBatches(invalidLinks, 100).Error
 }
 
 // List 分页查询失效链接
