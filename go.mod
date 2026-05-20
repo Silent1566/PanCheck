@@ -1,8 +1,6 @@
 module PanCheck
 
-go 1.23.0
-
-toolchain go1.24.5
+go 1.25.0
 
 require (
 	github.com/gin-gonic/gin v1.9.1
@@ -67,6 +65,7 @@ require (
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/net v0.12.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect

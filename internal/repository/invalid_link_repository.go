@@ -76,11 +76,50 @@ func (r *InvalidLinkRepository) Count(count *int64) error {
 	return database.DB.Model(&model.InvalidLink{}).Where("is_rate_limited = ?", false).Count(count).Error
 }
 
+// FindByLinksNonRateLimited 批量查找非被限制的失效链接（排除 is_rate_limited=true 的记录）
+func (r *InvalidLinkRepository) FindByLinksNonRateLimited(links []string) (map[string]*model.InvalidLink, error) {
+	if len(links) == 0 {
+		return make(map[string]*model.InvalidLink), nil
+	}
+	var invalidLinks []model.InvalidLink
+	err := database.DB.Where("link IN ? AND is_rate_limited = ?", links, false).Find(&invalidLinks).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]*model.InvalidLink, len(invalidLinks))
+	for i := range invalidLinks {
+		result[invalidLinks[i].Link] = &invalidLinks[i]
+	}
+	return result, nil
+}
+
 // CountByPlatform 按平台统计失效链接数
 func (r *InvalidLinkRepository) CountByPlatform(platform model.Platform, count *int64) error {
 	return database.DB.Model(&model.InvalidLink{}).
 		Where("platform = ?", platform).
 		Count(count).Error
+}
+
+// GroupCountByPlatform 按平台分组统计失效链接数（单次SQL查询）
+func (r *InvalidLinkRepository) GroupCountByPlatform() (map[string]int64, error) {
+	type result struct {
+		Platform string
+		Count    int64
+	}
+	var results []result
+	err := database.DB.Model(&model.InvalidLink{}).
+		Select("platform, COUNT(*) as count").
+		Group("platform").
+		Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	countMap := make(map[string]int64, len(results))
+	for _, r := range results {
+		countMap[r.Platform] = r.Count
+	}
+	return countMap, nil
 }
 
 // CountByRateLimited 统计被限制的失效链接数
